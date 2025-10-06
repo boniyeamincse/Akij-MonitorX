@@ -9,6 +9,8 @@
     "dev": "nodemon src/server.js",
     "smoke-test": "powershell -ExecutionPolicy Bypass -File ./scripts/smoke-test.ps1",
     "smoke-test:linux": "bash ./scripts/smoke-test.sh",
+    "full-test": "bash ./scripts/test.sh",
+    "setup": "bash ./scripts/setup.sh",
     "test": "npm run smoke-test"
   },
   "dependencies": {
