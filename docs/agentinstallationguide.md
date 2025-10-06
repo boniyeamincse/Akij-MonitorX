@@ -87,3 +87,37 @@ For binary updates, download the new version and replace the binary.
 
 ## Support
 If you encounter issues, check the [User Guide](userguide.md) or contact support.
+
+## Simple installers (recommended for quick deploy)
+
+This repository includes two convenience installer scripts to deploy the Node-based agent from the repo sources.
+
+- Linux (Debian/Ubuntu): `scripts/agent-install.sh` — copies files to `/opt/akij-monitorx-agent` and creates a systemd service.
+- Windows (PowerShell): `scripts/agent-install.ps1` — copies files to `%ProgramFiles%\AkijMonitorXAgent` and creates a Scheduled Task named `AkijMonitorXAgent` to run at startup.
+
+Usage (Linux):
+
+```bash
+sudo bash scripts/agent-install.sh
+```
+
+Usage (Windows PowerShell as Administrator):
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\\scripts\\agent-install.ps1
+```
+
+After installation check:
+
+Linux:
+```bash
+systemctl status akij-monitorx-agent
+journalctl -u akij-monitorx-agent -f
+```
+
+Windows (PowerShell):
+```powershell
+Get-ScheduledTask -TaskName AkijMonitorXAgent | Format-List *
+# Logs depend on how the agent is configured; check the installed folder or agent log output
+```

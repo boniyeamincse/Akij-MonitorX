@@ -115,6 +115,16 @@ npm run smoke-test
 - `docs/` — Documentation and guides
 - `scripts/` — smoke-test scripts
 
+## Documentation
+Primary docs are in the `docs/` folder. Quick links:
+
+- `docs/UNDERSTANDING.md` — Project overview and developer guidance
+- `docs/test.md` — Tester guide and smoke-test instructions (PowerShell & Bash)
+- `docs/agentinstallationguide.md` — Agent installation and installers (Linux/Windows)
+- `docs/docker-troubleshooting-cheatsheet.md` — Docker troubleshooting tips
+- `docs/architecture.md` — Architecture reference
+- `docs/userguide.md` — End-user guide
+
 ## Testing & smoke tests
 - Windows: `npm run smoke-test` runs `scripts/smoke-test.ps1` (PowerShell)
 - Linux: `npm run smoke-test:linux` runs `scripts/smoke-test.sh` (Debian/Ubuntu)
