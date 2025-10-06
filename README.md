@@ -28,126 +28,124 @@ Prophet (for trend forecasting)
 
 Predicts future CPU/RAM load or storage exhaustion.
 
-Estimates system failure risk score per host.
+# Akij MonitorX
 
-⚙️ 4. Automated Alert Prioritization
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-AI classifies alerts as Critical, Warning, or Low Priority.
+Lightweight monitoring for infrastructure and services. Collects metrics from agents, provides a web dashboard, and includes an AI engine for anomaly detection, alert prioritization and reporting.
 
-Reduces alert fatigue and false positives.
+## Contents
+- Features
+- Quick start (Debian/Ubuntu)
+- Quick start (Windows)
+- Project layout
+- Testing and smoke tests
+- AI Engine notes
+- Docker Compose
+- Development workflow
+- Contributing
 
-🧠 5. Intelligent Root Cause Analysis
+---
 
-AI correlates multiple metrics to find probable cause (e.g., high I/O + memory leak = DB issue).
+## Features
+- Real-time metrics collection (agents → Node server)
+- Web dashboard (`public/`) with Socket.IO updates
+- Simple agent (`src/agent.js`) for OS metrics
+- AI Engine (`ai_engine/`) with anomaly detection, forecasting, reporting and chatbot API
+- Docker Compose for full-stack deployment (Zabbix, Grafana, AI Engine)
 
-🗄️ 6. Smart Reporting
+## Quick start (Debian/Ubuntu)
+1. Install prerequisites:
 
-Generates daily/weekly summaries of system performance.
-
-Highlights anomalies and predictions in PDF or email.
-
-🧩 7. Chatbot Integration (Optional)
-
-Query system health using natural language:
-"Hey AI, show me CPU for Server-01."
-
-- CLI Chatbot: Run `python chatbot.py`
-- API: Run `python chatbot_api.py` and POST to `/query` with {"query": "CPU", "host": "Server-01"}
-
-## 🏗️ High-Level Architecture
-
-```
-+-------------------+     +-------------------+     +-------------------+
-|   Zabbix Agents   |     |   Zabbix Server   |     |   Grafana UI      |
-|   (on Servers)    |---->|   (Metrics DB)    |---->|   (Dashboard)     |
-|   - CPU, RAM,     |     |   - MariaDB       |     +-------------------+
-|   - Disk, Network |     |   - Zabbix Web    |
-+-------------------+     +-------------------+     +-------------------+
-          |                       |                       |
-          |                       |                       |
-          v                       v                       v
-+-------------------+     +-------------------+     +-------------------+
-|   AI Engine       |     |   Alert Manager   |     |   Chatbot API     |
-|   (Anomaly Det.)  |     |   (Prometheus)    |     |   (NLP Queries)   |
-|   - LSTM, Prophet |     |   - Email/Slack   |     +-------------------+
-|   - Predictions   |     +-------------------+             |
-+-------------------+             |                       |
-          |                       |                       |
-          v                       v                       v
-+-------------------+     +-------------------+     +-------------------+
-|   Smart Reports   |     |   Root Cause      |     |   Predictive      |
-|   (PDF/Email)     |     |   Analysis        |     |   Analytics       |
-+-------------------+     +-------------------+     +-------------------+
+```bash
+sudo apt update
+sudo apt install -y nodejs npm git curl
+# Docker: follow Docker docs for Ubuntu installation
 ```
 
-### Architecture Overview
-- **Data Collection**: Zabbix agents collect metrics from monitored servers
-- **Storage & Visualization**: Zabbix server stores data, Grafana provides dashboards
-- **AI Processing**: AI Engine analyzes data for anomalies, predictions, and insights
-- **Alerting & Notification**: Alert Manager handles prioritized alerts via multiple channels
-- **Reporting**: Automated PDF reports with key insights
-- **Interaction**: Optional chatbot for natural language system queries
+2. Clone and install:
 
-## Use Case Examples
-| Use Case | Description |
-|----------|-------------|
-| 🧩 Server Resource Monitoring | CPU, Memory, Disk, Load, Processes, and Uptime |
-| ⚙️ Service Monitoring | Check Nginx, Apache, MySQL, SSH, or custom services |
-| 🗄️ Database Monitoring | MySQL / PostgreSQL health, connection stats, slow queries |
-| 🌐 Network Monitoring | Router and switch SNMP data, bandwidth usage |
-| 🔔 Alert Management | Receive email or Telegram alerts for service downtime |
-| 🧰 Performance Analysis | Graph historical performance data and trends |
-| 🔒 Security Compliance | Detect unauthorized services or unexpected processes |
-| 📈 Capacity Planning | Forecast resource needs using historical data |
+```bash
+git clone https://github.com/boniyeamincse/Akij-MonitorX.git
+cd Akij-MonitorX
+npm install
+```
 
-## Installation
-1. Install Node.js (version 14 or higher)
-2. Clone the repository
-3. Install dependencies:
-   ```
-   npm install
-   ```
-4. Copy `.env.example` to `.env` and configure environment variables
+3. Start server & agent:
 
-## Running the Application
-- Start the server:
-  ```
-  npm start
-  ```
-- Start an agent (in a separate terminal):
-  ```
-  npm run agent
-  ```
+```bash
+npm start &
+npm run agent
+```
 
-## Testing / Quick verification
-- Run the built-in PowerShell smoke test (Windows):
+4. Quick verification (Linux):
+
+```bash
+npm run smoke-test:linux
+```
+
+## Quick start (Windows - PowerShell)
+1. Install Node.js and Git for Windows.
+2. Clone and install:
+
+```powershell
+git clone https://github.com/boniyeamincse/Akij-MonitorX.git
+cd "Akij MonitorX"
+npm install
+```
+
+3. Start server and agent:
+
+```powershell
+npm start
+# in another terminal
+npm run agent
+```
+
+4. Quick verification (PowerShell):
 
 ```powershell
 npm run smoke-test
 ```
 
-- For manual testing see `docs/test.md` which contains PowerShell commands and Docker Compose checks.
-- If you need to test the Python chatbot API quickly, install the minimal requirements in `ai_engine/requirements.txt` inside a virtualenv.
-- Open http://localhost:3000 in your browser for the dashboard
+## Project layout
+- `src/` — Node server and agent
+- `public/` — Frontend / dashboard
+- `ai_engine/` — Python AI package (chatbot API, analytics)
+- `docs/` — Documentation and guides
+- `scripts/` — smoke-test scripts
 
-## Quick Start
-1. Review the [Architecture](docs/architecture.md) documentation
-2. Follow the [Agent Installation Guide](docs/agentinstallationguide.md) to deploy agents
-3. Refer to the [User Guide](docs/userguide.md) for detailed usage instructions
+## Testing & smoke tests
+- Windows: `npm run smoke-test` runs `scripts/smoke-test.ps1` (PowerShell)
+- Linux: `npm run smoke-test:linux` runs `scripts/smoke-test.sh` (Debian/Ubuntu)
+- Manual test steps and debugging: see `docs/test.md`
 
-## Documentation
-- [Architecture](docs/architecture.md)
-- [User Guide](docs/userguide.md)
-- [Agent Installation Guide](docs/agentinstallationguide.md)
+## AI Engine (Python) notes
+- Minimal requirements: `ai_engine/requirements.txt` (Flask + zabbix-api)
+- Heavy ML packages (TensorFlow, Prophet, transformers) are optional and best installed on Linux or in Docker.
+- Use `python -m ai_engine.chatbot_api` to run the chatbot API after installing dependencies.
 
-## Deployment
-Use Docker Compose for quick setup:
-```
-docker-compose up -d
-```
+## Docker Compose (full stack)
+- Run `docker-compose up -d` to start Zabbix, Grafana, and other services.
+- On Ubuntu/Debian use Docker Engine; on Windows use Docker Desktop with WSL2.
 
-The setup includes:
-- Zabbix Server with MariaDB database
+## Development workflow
+- Use `npm run dev` (nodemon) for development auto-reloads.
+- Keep secrets out of git; use `.env` and never commit credentials.
+- Add unit tests: I can add Jest + supertest for Node endpoints and a basic Python import test for CI.
+
+## Contributing
+- Open issues for bugs and feature requests.
+- Send PRs against `main`. Small, focused PRs with tests are preferred.
+
+---
+
+If you want I can next:
+- Add a `.gitignore` and commit it for you (recommended).
+- Create a GitHub Actions workflow that runs smoke tests on push.
+- Add unit tests and a CI setup.
+
+Tell me which to do next and I'll continue.
 - Zabbix Web Interface
 - Zabbix Agent2 for monitoring
 - AI Engine for anomaly detection
