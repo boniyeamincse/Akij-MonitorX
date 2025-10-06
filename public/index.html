@@ -10,21 +10,27 @@
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             :root{
-                --bg:#0f1724; --card:#0b1220; --muted:#93a4b8; --accent:#06b6d4; --success:#10b981;
+                --bg:#0f1724; --card:#0b1220; --muted:#93a4b8; --accent:#06b6d4; --success:#10b981; --warning:#f59e0b; --danger:#ef4444;
                 --gap:16px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
             }
             html,body{height:100%;margin:0;background:linear-gradient(180deg,#071128 0%, #07162a 100%);color:#e6eef6}
             .container{max-width:1200px;margin:28px auto;padding:0 20px}
             header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+            @media (max-width:640px){header{flex-direction:column;align-items:flex-start;gap:8px}}
             h1{font-size:20px;margin:0}
             .controls{display:flex;gap:8px;align-items:center}
+            button{background:var(--accent);color:#fff;border:0;padding:6px 12px;border-radius:6px;cursor:pointer}
+            button:hover{background:#0ea5e9}
             .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--gap);margin-top:18px}
             .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:14px;border-radius:10px;box-shadow:0 4px 18px rgba(2,6,23,0.6)}
             .card h3{margin:0 0 8px 0;font-size:16px}
             .meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
             .pill{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:6px;font-size:13px;color:var(--muted)}
+            .status{background:var(--success);color:#fff}
+            .status.warning{background:var(--warning)}
+            .status.critical{background:var(--danger)}
             .row{display:flex;gap:12px;align-items:center}
-            .chart-wrap{width:120px;height:48px}
+            .chart-wrap{width:120px;height:64px}
             .stats{flex:1}
             .large{font-weight:600;color:#fff}
             .muted{color:var(--muted);font-size:12px}
@@ -41,6 +47,7 @@
                 </div>
                 <div class="controls">
                     <div class="muted">Auto-updates: <strong id="status">connecting...</strong></div>
+                    <button id="refresh">Refresh</button>
                 </div>
             </header>
 
@@ -72,23 +79,24 @@
                         <div class="stats">
                             <h3 id="title-${agentId}">Agent: ${agentId}</h3>
                             <div class="meta">
-                                <div class="pill" id="host-${agentId}">-</div>
-                                <div class="pill" id="plat-${agentId}">-</div>
-                                <div class="pill" id="uptime-${agentId}">-</div>
+                                <div class="pill" id="host-${agentId}">Loading...</div>
+                                <div class="pill" id="plat-${agentId}">Loading...</div>
+                                <div class="pill" id="uptime-${agentId}">Loading...</div>
+                                <div class="pill status" id="status-${agentId}">Connecting</div>
                             </div>
                         </div>
                         <div class="chart-wrap"><canvas id="chart-${agentId}"></canvas></div>
                     </div>
                     <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
                         <div style="min-width:140px">
-                            <div class="muted">CPU cores</div>
-                            <div class="large" id="cpus-${agentId}">-</div>
+                            <div class="muted">CPU load</div>
+                            <div class="large" id="cpus-${agentId}">Loading...</div>
                         </div>
                         <div style="min-width:160px">
                             <div class="muted">Memory used</div>
-                            <div class="large" id="mem-${agentId}">-</div>
+                            <div class="large" id="mem-${agentId}">Loading...</div>
                         </div>
-                        <div style="flex:1;text-align:right" class="muted" id="last-${agentId}">-</div>
+                        <div style="flex:1;text-align:right" class="muted" id="last-${agentId}">Loading...</div>
                     </div>
                 `;
                 agentsEl.prepend(el);
@@ -96,11 +104,14 @@
                 // create chart
                 const ctx = document.getElementById('chart-'+agentId).getContext('2d');
                 const cfg = {
-                    type: 'line', data: { labels: [], datasets: [{ label: 'Mem %', data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#06b6d4', backgroundColor: 'transparent', tension:0.3, pointRadius:0 }]},
-                    options:{responsive:true, maintainAspectRatio:false, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:false}}}
+                    type: 'line', data: { labels: [], datasets: [
+                        { label: 'CPU Load %', data: [], borderColor: '#10b981', backgroundColor: 'transparent', tension:0.3, pointRadius:0 },
+                        { label: 'Mem %', data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#06b6d4', backgroundColor: 'transparent', tension:0.3, pointRadius:0 }
+                    ]},
+                    options:{responsive:true, maintainAspectRatio:false, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:true}}}
                 };
                 charts.set(agentId, new Chart(ctx, cfg));
-                history[agentId] = [];
+                history[agentId] = {cpu: [], mem: []};
                 return el;
             }
 
@@ -110,18 +121,33 @@
                 document.getElementById('host-'+agentId).textContent = data.hostname || 'unknown';
                 document.getElementById('plat-'+agentId).textContent = data.platform || '-';
                 document.getElementById('uptime-'+agentId).textContent = uptimeText(data.uptime);
-                document.getElementById('cpus-'+agentId).textContent = data.cpus || '-';
+                document.getElementById('uptime-'+agentId).title = `System uptime: ${data.uptime || 0} seconds`;
+                const loadPercent = data.loadavg && data.cpus ? Math.round((data.loadavg[0] / data.cpus) * 100) : 0;
+                document.getElementById('cpus-'+agentId).textContent = loadPercent + '%';
+                document.getElementById('cpus-'+agentId).title = `CPU Load: ${loadPercent}%, Cores: ${data.cpus || 'N/A'}, Load Avg: ${data.loadavg ? data.loadavg[0].toFixed(2) : 'N/A'}`;
                 const used = (data.totalmem && data.freemem) ? Math.round((data.totalmem - data.freemem)/1024/1024) + 'MB' : 'N/A';
-                document.getElementById('mem-'+agentId).textContent = used + (data.totalmem ? ' / '+Math.round(data.totalmem/1024/1024)+'MB' : '');
+                const totalMem = data.totalmem ? Math.round(data.totalmem/1024/1024) : 0;
+                document.getElementById('mem-'+agentId).textContent = used + (data.totalmem ? ' / '+totalMem+'MB' : '');
+                document.getElementById('mem-'+agentId).title = `Memory: ${data.totalmem && data.freemem ? Math.round((1 - data.freemem / data.totalmem) * 100) : 'N/A'}% used, ${used} / ${totalMem}MB`;
                 document.getElementById('last-'+agentId).textContent = data.timestamp ? new Date(data.timestamp).toLocaleString() : '';
 
-                // memory percent for chart
-                if(data.totalmem && typeof data.freemem === 'number'){
-                    const percent = Math.round((1 - data.freemem / data.totalmem) * 100);
+                // cpu and memory percent for chart and status
+                if(data.totalmem && typeof data.freemem === 'number' && data.loadavg && data.cpus){
+                    const memPercent = Math.round((1 - data.freemem / data.totalmem) * 100);
+                    const status = (loadPercent > 80 || memPercent > 80) ? 'Critical' : (loadPercent > 50 || memPercent > 50) ? 'Warning' : 'Healthy';
+                    const statusEl = document.getElementById('status-'+agentId);
+                    statusEl.textContent = status;
+                    statusEl.className = 'pill status ' + status.toLowerCase();
                     const h = history[agentId];
-                    h.push(percent); if(h.length>30) h.shift();
+                    h.cpu.push(loadPercent); if(h.cpu.length>30) h.cpu.shift();
+                    h.mem.push(memPercent); if(h.mem.length>30) h.mem.shift();
                     const chart = charts.get(agentId);
-                    if(chart){ chart.data.labels = h.map((_,i)=>i); chart.data.datasets[0].data = h; chart.update('none'); }
+                    if(chart){
+                        chart.data.labels = h.cpu.map((_,i)=>i);
+                        chart.data.datasets[0].data = h.cpu;
+                        chart.data.datasets[1].data = h.mem;
+                        chart.update('none');
+                    }
                 }
             }
 
@@ -134,6 +160,9 @@
             } else {
                 statusEl.textContent = 'socket.io not available';
             }
+
+            // Refresh button
+            document.getElementById('refresh').addEventListener('click', () => { location.reload(); });
         </script>
     </body>
 </html>
