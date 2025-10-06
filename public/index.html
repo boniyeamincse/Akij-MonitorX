@@ -1,59 +1,139 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Akij MonitorX Dashboard</title>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .agent { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-        .metric { display: inline-block; margin: 5px; }
-    </style>
-</head>
-<body>
-    <h1>Akij MonitorX Dashboard</h1>
-    <div id="agents"></div>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Akij MonitorX Dashboard</title>
+        <link rel="preconnect" href="https://fonts.gstatic.com">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+        <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            :root{
+                --bg:#0f1724; --card:#0b1220; --muted:#93a4b8; --accent:#06b6d4; --success:#10b981;
+                --gap:16px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+            }
+            html,body{height:100%;margin:0;background:linear-gradient(180deg,#071128 0%, #07162a 100%);color:#e6eef6}
+            .container{max-width:1200px;margin:28px auto;padding:0 20px}
+            header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+            h1{font-size:20px;margin:0}
+            .controls{display:flex;gap:8px;align-items:center}
+            .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--gap);margin-top:18px}
+            .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.04);padding:14px;border-radius:10px;box-shadow:0 4px 18px rgba(2,6,23,0.6)}
+            .card h3{margin:0 0 8px 0;font-size:16px}
+            .meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+            .pill{background:rgba(255,255,255,0.03);padding:6px 8px;border-radius:6px;font-size:13px;color:var(--muted)}
+            .row{display:flex;gap:12px;align-items:center}
+            .chart-wrap{width:120px;height:48px}
+            .stats{flex:1}
+            .large{font-weight:600;color:#fff}
+            .muted{color:var(--muted);font-size:12px}
+            footer{margin-top:20px;color:var(--muted);font-size:13px}
+            @media (max-width:480px){.row{flex-direction:column;align-items:flex-start}.chart-wrap{width:100%;height:80px}}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <header>
+                <div>
+                    <h1>Akij MonitorX</h1>
+                    <div class="muted">Real-time metrics dashboard</div>
+                </div>
+                <div class="controls">
+                    <div class="muted">Auto-updates: <strong id="status">connecting...</strong></div>
+                </div>
+            </header>
 
-    <script>
-        const socket = io();
+            <main>
+                <div id="agents" class="grid"></div>
+            </main>
 
-        socket.on('initialMetrics', (metrics) => {
-            updateDashboard(metrics);
-        });
+            <footer>
+                Data shown is best-effort from connected agents. For docs and testing, see <a href="/docs/UNDERSTANDING.md" style="color:var(--accent)">Documentation</a>.
+            </footer>
+        </div>
 
-        socket.on('metricsUpdate', ({ agentId, data }) => {
-            updateAgent(agentId, data);
-        });
+        <script>
+            const socket = (typeof io !== 'undefined') ? io() : null;
+            const agentsEl = document.getElementById('agents');
+            const statusEl = document.getElementById('status');
+            const charts = new Map();
+            const history = {};
 
-        function updateDashboard(metrics) {
-            const container = document.getElementById('agents');
-            container.innerHTML = '';
-            Object.keys(metrics).forEach(agentId => {
-                updateAgent(agentId, metrics[agentId]);
-            });
-        }
+            function humanBytes(n){ if(!n && n!==0) return 'N/A'; return Math.round(n/1024/1024) + ' MB'; }
+            function uptimeText(u){ if(!u) return 'N/A'; const h=Math.floor(u/3600); const m=Math.floor((u%3600)/60); return `${h}h ${m}m`; }
 
-        function updateAgent(agentId, data) {
-            let agentDiv = document.getElementById(`agent-${agentId}`);
-            if (!agentDiv) {
-                agentDiv = document.createElement('div');
-                agentDiv.id = `agent-${agentId}`;
-                agentDiv.className = 'agent';
-                document.getElementById('agents').appendChild(agentDiv);
+            function ensureCard(agentId){
+                let el = document.getElementById('agent-'+agentId);
+                if(el) return el;
+                el = document.createElement('div'); el.id = 'agent-'+agentId; el.className='card';
+                el.innerHTML = `
+                    <div class="row">
+                        <div class="stats">
+                            <h3 id="title-${agentId}">Agent: ${agentId}</h3>
+                            <div class="meta">
+                                <div class="pill" id="host-${agentId}">-</div>
+                                <div class="pill" id="plat-${agentId}">-</div>
+                                <div class="pill" id="uptime-${agentId}">-</div>
+                            </div>
+                        </div>
+                        <div class="chart-wrap"><canvas id="chart-${agentId}"></canvas></div>
+                    </div>
+                    <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
+                        <div style="min-width:140px">
+                            <div class="muted">CPU cores</div>
+                            <div class="large" id="cpus-${agentId}">-</div>
+                        </div>
+                        <div style="min-width:160px">
+                            <div class="muted">Memory used</div>
+                            <div class="large" id="mem-${agentId}">-</div>
+                        </div>
+                        <div style="flex:1;text-align:right" class="muted" id="last-${agentId}">-</div>
+                    </div>
+                `;
+                agentsEl.prepend(el);
+
+                // create chart
+                const ctx = document.getElementById('chart-'+agentId).getContext('2d');
+                const cfg = {
+                    type: 'line', data: { labels: [], datasets: [{ label: 'Mem %', data: [], borderColor: getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#06b6d4', backgroundColor: 'transparent', tension:0.3, pointRadius:0 }]},
+                    options:{responsive:true, maintainAspectRatio:false, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:false}}}
+                };
+                charts.set(agentId, new Chart(ctx, cfg));
+                history[agentId] = [];
+                return el;
             }
 
-            agentDiv.innerHTML = `
-                <h3>Agent: ${agentId}</h3>
-                <div class="metric">Hostname: ${data.hostname}</div>
-                <div class="metric">Platform: ${data.platform}</div>
-                <div class="metric">Uptime: ${Math.floor(data.uptime / 3600)}h ${Math.floor((data.uptime % 3600) / 60)}m</div>
-                <div class="metric">CPU Cores: ${data.cpus}</div>
-                <div class="metric">Memory: ${Math.round((data.totalmem - data.freemem) / 1024 / 1024)}MB / ${Math.round(data.totalmem / 1024 / 1024)}MB</div>
-                <div class="metric">Load Average: ${data.loadavg.map(l => l.toFixed(2)).join(', ')}</div>
-                <div class="metric">Last Update: ${new Date(data.timestamp).toLocaleString()}</div>
-            `;
-        }
-    </script>
-</body>
+            function updateCard(agentId, data){
+                ensureCard(agentId);
+                document.getElementById('title-'+agentId).textContent = `Agent: ${agentId}`;
+                document.getElementById('host-'+agentId).textContent = data.hostname || 'unknown';
+                document.getElementById('plat-'+agentId).textContent = data.platform || '-';
+                document.getElementById('uptime-'+agentId).textContent = uptimeText(data.uptime);
+                document.getElementById('cpus-'+agentId).textContent = data.cpus || '-';
+                const used = (data.totalmem && data.freemem) ? Math.round((data.totalmem - data.freemem)/1024/1024) + 'MB' : 'N/A';
+                document.getElementById('mem-'+agentId).textContent = used + (data.totalmem ? ' / '+Math.round(data.totalmem/1024/1024)+'MB' : '');
+                document.getElementById('last-'+agentId).textContent = data.timestamp ? new Date(data.timestamp).toLocaleString() : '';
+
+                // memory percent for chart
+                if(data.totalmem && typeof data.freemem === 'number'){
+                    const percent = Math.round((1 - data.freemem / data.totalmem) * 100);
+                    const h = history[agentId];
+                    h.push(percent); if(h.length>30) h.shift();
+                    const chart = charts.get(agentId);
+                    if(chart){ chart.data.labels = h.map((_,i)=>i); chart.data.datasets[0].data = h; chart.update('none'); }
+                }
+            }
+
+            // Socket.IO events
+            if(socket){
+                socket.on('connect', ()=>{ statusEl.textContent = 'connected'; statusEl.style.color='var(--success)'; });
+                socket.on('disconnect', ()=>{ statusEl.textContent = 'disconnected'; statusEl.style.color='var(--muted)'; });
+                socket.on('initialMetrics', (metrics)=>{ Object.keys(metrics||{}).forEach(id=> updateCard(id, metrics[id])); });
+                socket.on('metricsUpdate', ({agentId,data})=> updateCard(agentId, data));
+            } else {
+                statusEl.textContent = 'socket.io not available';
+            }
+        </script>
+    </body>
 </html>
