@@ -1,0 +1,30 @@
+global:
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@example.com'
+  smtp_auth_username: 'alerts@example.com'
+  smtp_auth_password: 'password'
+
+route:
+  group_by: ['alertname']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'email'
+  routes:
+  - match:
+      alertname: 'Zabbix'
+    receiver: 'zabbix-alerts'
+
+receivers:
+- name: 'email'
+  email_configs:
+  - to: 'admin@example.com'
+- name: 'zabbix-alerts'
+  email_configs:
+  - to: 'zabbix-admin@example.com'
+  telegram_configs:
+  - bot_token: 'your_bot_token'
+    chat_id: 'your_chat_id'
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#alerts'

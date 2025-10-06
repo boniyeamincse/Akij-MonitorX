@@ -1,0 +1,9 @@
+# Minimal requirements for running the chatbot API and light ai_engine tests
+flask
+zabbix-api
+# Optional (heavy) ML deps - install only if needed
+# tensorflow
+# prophet
+# scikit-learn
+# transformers
+# reportlab

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akij MonitorX Dashboard</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .agent { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+        .metric { display: inline-block; margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Akij MonitorX Dashboard</h1>
+    <div id="agents"></div>
+
+    <script>
+        const socket = io();
+
+        socket.on('initialMetrics', (metrics) => {
+            updateDashboard(metrics);
+        });
+
+        socket.on('metricsUpdate', ({ agentId, data }) => {
+            updateAgent(agentId, data);
+        });
+
+        function updateDashboard(metrics) {
+            const container = document.getElementById('agents');
+            container.innerHTML = '';
+            Object.keys(metrics).forEach(agentId => {
+                updateAgent(agentId, metrics[agentId]);
+            });
+        }
+
+        function updateAgent(agentId, data) {
+            let agentDiv = document.getElementById(`agent-${agentId}`);
+            if (!agentDiv) {
+                agentDiv = document.createElement('div');
+                agentDiv.id = `agent-${agentId}`;
+                agentDiv.className = 'agent';
+                document.getElementById('agents').appendChild(agentDiv);
+            }
+
+            agentDiv.innerHTML = `
+                <h3>Agent: ${agentId}</h3>
+                <div class="metric">Hostname: ${data.hostname}</div>
+                <div class="metric">Platform: ${data.platform}</div>
+                <div class="metric">Uptime: ${Math.floor(data.uptime / 3600)}h ${Math.floor((data.uptime % 3600) / 60)}m</div>
+                <div class="metric">CPU Cores: ${data.cpus}</div>
+                <div class="metric">Memory: ${Math.round((data.totalmem - data.freemem) / 1024 / 1024)}MB / ${Math.round(data.totalmem / 1024 / 1024)}MB</div>
+                <div class="metric">Load Average: ${data.loadavg.map(l => l.toFixed(2)).join(', ')}</div>
+                <div class="metric">Last Update: ${new Date(data.timestamp).toLocaleString()}</div>
+            `;
+        }
+    </script>
+</body>
+</html>

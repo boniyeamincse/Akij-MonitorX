@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:10.6
+    container_name: zabbix-mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpasswd
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix
+      MYSQL_DATABASE: zabbix
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    networks:
+      - zabbix-net
+
+  zabbix-server-mysql:
+    image: zabbix/zabbix-server-mysql:latest
+    container_name: zabbix-server
+    environment:
+      DB_SERVER_HOST: mariadb
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix
+      MYSQL_DATABASE: zabbix
+    ports:
+      - "10051:10051"
+    depends_on:
+      - mariadb
+    volumes:
+      - zabbix_server_data:/var/lib/zabbix
+    networks:
+      - zabbix-net
+
+  zabbix-web-nginx-mysql:
+    image: zabbix/zabbix-web-nginx-mysql:latest
+    container_name: zabbix-web
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      DB_SERVER_HOST: mariadb
+      MYSQL_USER: zabbix
+      MYSQL_PASSWORD: zabbix
+      MYSQL_DATABASE: zabbix
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mariadb
+      - zabbix-server
+    networks:
+      - zabbix-net
+
+  zabbix-agent2:
+    image: zabbix/zabbix-agent2:latest
+    container_name: zabbix-agent2
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+    ports:
+      - "10050:10050"
+    networks:
+      - zabbix-net
+
+  ai-engine:
+    build: ./ai-engine
+    container_name: ai-engine
+    env_file:
+      - .env
+    environment:
+      ZABBIX_URL: http://zabbix-web:8080/api_jsonrpc.php
+      ZABBIX_USER: ${ZABBIX_USER}
+      ZABBIX_PASS: ${ZABBIX_PASS}
+    depends_on:
+      - zabbix-server
+      - zabbix-web
+    networks:
+      - zabbix-net
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager.yml:/alertmanager.yml
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/alertmanager.yml'
+    networks:
+      - zabbix-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: zabbix-grafana
+    environment:
+      GF_INSTALL_PLUGINS: alexanderzobnin-zabbix-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - zabbix-web
+      - alertmanager
+    networks:
+      - zabbix-net
+
+volumes:
+  mariadb_data:
+  zabbix_server_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  zabbix-net:
+    driver: bridge
